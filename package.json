@@ -1,9 +1,12 @@
 {
-  "name": "business-connect",
+  "name": "business-connect-demo",
   "version": "1.0.0",
+  "description": "Business Connect marketplace prototype",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "express": "^4.21.2"
+  }
 }
