@@ -61,10 +61,10 @@ function getSession(req) {
 }
 
 function roleBadge(role) {
-    if (role === 'superadmin') return '<span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded border border-purple-300">👑 Super Admin</span>';
-    if (role === 'admin') return '<span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-300">🛡️ Admin</span>';
-    if (role === 'seller') return '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">🏪 Seller</span>';
-    return '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">🛒 Buyer</span>';
+    if (role === 'superadmin') return '<span class="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-400">👑 Super Admin</span>';
+    if (role === 'admin') return '<span class="bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 text-[10px] font-bold px-2 py-0.5 rounded border border-teal-400">🛡️ Admin</span>';
+    if (role === 'seller') return '<span class="bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 rounded border border-green-400">🏪 Seller</span>';
+    return '<span class="bg-lime-100 dark:bg-lime-900/60 text-lime-800 dark:text-lime-300 text-[10px] font-bold px-2 py-0.5 rounded border border-lime-400">🛒 Buyer</span>';
 }
 
 function dashboardUrl(role) {
@@ -79,67 +79,111 @@ function layout(title, content, user = null) {
     if (user) {
         authNav = `
             <div class="flex items-center space-x-2">
-                <a href="${dashboardUrl(user.role)}" class="text-xs font-bold text-slate-800 hover:text-blue-700 flex items-center gap-1">
+                <a href="${dashboardUrl(user.role)}" class="text-xs font-bold text-slate-800 dark:text-slate-200 hover:text-emerald-600 flex items-center gap-1">
                     ${roleBadge(user.role)}
                     <span class="hidden sm:inline">${user.name}</span>
                 </a>
-                <a href="${dashboardUrl(user.role)}" class="bg-blue-700 text-white text-xs px-2.5 py-1 rounded font-bold hover:bg-blue-800">Dashboard</a>
-                <a href="/logout" class="text-xs text-rose-600 font-bold hover:underline">Logout</a>
+                <a href="${dashboardUrl(user.role)}" class="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-bold hover:bg-emerald-700 shadow-sm">Dashboard</a>
+                <a href="/logout" class="text-xs text-rose-500 font-bold hover:underline">Logout</a>
             </div>
         `;
     } else {
         authNav = `
             <div class="flex items-center space-x-2">
-                <a href="/login" class="bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-800 shadow-sm flex items-center gap-1">
+                <a href="/login" class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-1">
                     <i class="fa-solid fa-user-lock"></i> Login / Register
                 </a>
             </div>
         `;
     }
 
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    return `<!DOCTYPE html><html lang="en" class="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>${title} | Business Connect India</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' }
+                    }
+                }
+            }
+        }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    </head><body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
-    <header class="bg-[#0a1128] text-white py-2 px-4 text-xs border-b border-slate-800">
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcon();
+        }
+        function updateThemeIcon() {
+            const icon = document.getElementById('theme-toggle-icon');
+            if (icon) {
+                icon.className = document.documentElement.classList.contains('dark') ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon text-emerald-700';
+            }
+        }
+        window.addEventListener('DOMContentLoaded', updateThemeIcon);
+    </script>
+    </head><body class="bg-[#f8fafc] dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased flex flex-col min-h-screen transition-colors duration-200">
+    
+    <header class="bg-emerald-800 dark:bg-slate-900 text-white py-2 px-4 text-xs border-b border-emerald-900 dark:border-slate-800">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <span>🇮🇳 <b>Business Connect India</b> &bull; Unified B2B & B2C Marketplace</span>
+            <span>🇮🇳 <b>Business Connect India</b> &bull; White & Green B2B/B2C Marketplace</span>
             <span>Toll-Free: 1800-200-9898 &bull; INR (₹)</span>
         </div>
     </header>
-    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm px-4 py-3">
+
+    <nav class="bg-white dark:bg-slate-900 border-b border-emerald-100 dark:border-slate-800 sticky top-0 z-40 shadow-sm px-4 py-3">
         <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <a href="/" class="flex items-center space-x-2">
-                <span class="w-9 h-9 bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold text-lg">BC</span>
-                <span class="text-xl font-extrabold text-slate-900">Business<span class="text-blue-700">Connect</span></span>
+                <span class="w-9 h-9 bg-emerald-600 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow-sm">BC</span>
+                <span class="text-xl font-extrabold text-slate-900 dark:text-white">Business<span class="text-emerald-600">Connect</span></span>
             </a>
-            <div class="flex items-center flex-wrap gap-3 text-xs font-bold text-slate-700">
-                <a href="/" class="hover:text-blue-700">Home</a>
-                <a href="/directory" class="hover:text-blue-700">Directory</a>
-                <a href="/b2b" class="hover:text-blue-700">B2B Wholesale</a>
-                <a href="/marketplace" class="hover:text-blue-700">Retail</a>
+            
+            <div class="flex items-center flex-wrap gap-3 text-xs font-bold text-slate-700 dark:text-slate-200">
+                <a href="/" class="hover:text-emerald-600">Home</a>
+                <a href="/directory" class="hover:text-emerald-600">Directory</a>
+                <a href="/b2b" class="hover:text-emerald-600">B2B Wholesale</a>
+                <a href="/marketplace" class="hover:text-emerald-600">Retail</a>
+                
+                <button onclick="toggleTheme()" type="button" title="Switch Light/Dark Mode" class="p-2 rounded-lg bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 border border-emerald-200 dark:border-slate-700 transition">
+                    <i id="theme-toggle-icon" class="fa-solid fa-moon text-emerald-700"></i>
+                </button>
+
                 ${authNav}
             </div>
         </div>
     </nav>
+
     <main class="flex-1">${content}</main>
-    <footer class="bg-[#0a1128] text-slate-400 text-xs py-8 px-4 border-t border-slate-800 mt-12 text-center">
+
+    <footer class="bg-emerald-950 dark:bg-slate-950 text-emerald-100/70 dark:text-slate-400 text-xs py-8 px-4 border-t border-emerald-900 dark:border-slate-800 mt-12 text-center">
         <div class="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4 mb-4 text-left">
             <div>
-                <h4 class="text-white font-bold text-sm mb-1">Business Connect India</h4>
-                <p class="text-[11px] text-slate-400 max-w-sm">Connecting Manufacturers, Wholesalers, Retailers, and Buyers across 500+ Indian industrial clusters.</p>
+                <h4 class="text-white font-bold text-sm mb-1 flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Business Connect India
+                </h4>
+                <p class="text-[11px] text-emerald-200/60 dark:text-slate-400 max-w-sm">Leading Indian B2B & B2C Business Portal & Wholesale Network across 500+ industrial hubs.</p>
             </div>
-            <div class="flex space-x-4 text-xs">
-                <a href="/login?role=superadmin" class="hover:text-white">Super Admin Portal</a>
-                <a href="/login?role=admin" class="hover:text-white">Admin Portal</a>
-                <a href="/login?role=seller" class="hover:text-white">Seller Login</a>
-                <a href="/login?role=buyer" class="hover:text-white">Buyer Login</a>
+            <div class="flex flex-wrap gap-4 text-xs font-semibold">
+                <a href="/login?role=superadmin" class="hover:text-white">👑 Super Admin</a>
+                <a href="/login?role=admin" class="hover:text-white">🛡️ Admin</a>
+                <a href="/login?role=seller" class="hover:text-white">🏪 Seller</a>
+                <a href="/login?role=buyer" class="hover:text-white">🛒 Buyer</a>
             </div>
         </div>
-        <p class="border-t border-slate-800 pt-4">&copy; 2026 Business Connect Technologies India Pvt Ltd. Make in India 🇮🇳 &bull; GST & MSME Compliant</p>
+        <p class="border-t border-emerald-900/60 dark:border-slate-800 pt-4">&copy; 2026 Business Connect Technologies India Pvt Ltd. Make in India 🇮🇳 &bull; GST & MSME Compliant</p>
     </footer>
-    <a href="https://wa.me/919811122233" target="_blank" class="fixed bottom-5 right-5 bg-emerald-600 hover:bg-emerald-700 text-white w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-2xl z-50"><i class="fa-brands fa-whatsapp"></i></a>
+
+    <a href="https://wa.me/919811122233" target="_blank" class="fixed bottom-5 right-5 bg-emerald-600 hover:bg-emerald-700 text-white w-12 h-12 rounded-full shadow-2xl flex items-center justify-center text-2xl z-50 transition transform hover:scale-105"><i class="fa-brands fa-whatsapp"></i></a>
     </body></html>`;
 }
 
@@ -157,7 +201,7 @@ const server = http.createServer(async (req, res) => {
         return res.end();
     }
 
-    // 1-CLICK INSTANT LOGIN HANDLER (Mobile Friendly)
+    // 1-CLICK INSTANT LOGIN HANDLER
     if (p.pathname === '/quick-login') {
         const targetRole = p.query.role || 'buyer';
         const found = users.find(u => u.role === targetRole) || users[3];
@@ -191,132 +235,4 @@ const server = http.createServer(async (req, res) => {
             return res.end();
         }
 
-        const preselectRole = p.query.role || '';
-        const html = layout('Login & Register', `
-            <div class="max-w-md mx-auto px-4 py-10">
-                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-md">
-                    <div class="text-center mb-6">
-                        <span class="w-12 h-12 bg-blue-700 text-white rounded-xl inline-flex items-center justify-center font-bold text-xl mb-2">BC</span>
-                        <h2 class="text-2xl font-extrabold text-slate-900">Portal Login</h2>
-                        <p class="text-xs text-slate-500 mt-1">Select your role to access dashboard</p>
-                    </div>
-
-                    <!-- 1-Click Fast Mobile Access -->
-                    <div class="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-xs font-bold text-slate-700 block mb-2.5"><i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Quick 1-Click Login (Mobile Shortcut):</span>
-                        <div class="grid grid-cols-2 gap-2 text-xs">
-                            <a href="/quick-login?role=superadmin" class="bg-purple-700 hover:bg-purple-800 text-white font-bold py-2 px-3 rounded-lg text-center flex items-center justify-center gap-1 shadow-sm">
-                                👑 Super Admin
-                            </a>
-                            <a href="/quick-login?role=admin" class="bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-3 rounded-lg text-center flex items-center justify-center gap-1 shadow-sm">
-                                🛡️ Admin
-                            </a>
-                            <a href="/quick-login?role=seller" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-3 rounded-lg text-center flex items-center justify-center gap-1 shadow-sm">
-                                🏪 Seller
-                            </a>
-                            <a href="/quick-login?role=buyer" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg text-center flex items-center justify-center gap-1 shadow-sm">
-                                🛒 Buyer
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="relative flex py-2 items-center mb-4">
-                        <div class="flex-grow border-t border-slate-200"></div>
-                        <span class="flex-shrink mx-2 text-slate-400 text-xs font-semibold">Or Login with Password</span>
-                        <div class="flex-grow border-t border-slate-200"></div>
-                    </div>
-
-                    <form method="POST" action="/login" class="space-y-4 text-xs">
-                        <div>
-                            <label class="block font-bold text-slate-700 mb-1">Select Role</label>
-                            <select name="role" class="w-full border border-slate-300 rounded-lg p-2.5 font-medium outline-none focus:border-blue-600 bg-white">
-                                <option value="superadmin" ${preselectRole === 'superadmin' ? 'selected' : ''}>👑 Super Admin (Full Control)</option>
-                                <option value="admin" ${preselectRole === 'admin' ? 'selected' : ''}>🛡️ Admin (Operations & Approvals)</option>
-                                <option value="seller" ${preselectRole === 'seller' ? 'selected' : ''}>🏪 Seller (Supplier / Manufacturer)</option>
-                                <option value="buyer" ${preselectRole === 'buyer' || !preselectRole ? 'selected' : ''}>🛒 Buyer (Wholesale & Retail)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-bold text-slate-700 mb-1">Email Address</label>
-                            <input type="email" name="email" required placeholder="name@businessconnect.in" value="${preselectRole ? preselectRole + '@businessconnect.in' : 'seller@businessconnect.in'}" class="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:border-blue-600">
-                        </div>
-                        <div>
-                            <label class="block font-bold text-slate-700 mb-1">Password</label>
-                            <input type="password" name="password" required value="demo123" class="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:border-blue-600">
-                            <span class="text-[10px] text-slate-400 mt-1 block">Default demo password: <b>demo123</b></span>
-                        </div>
-                        <button type="submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg text-sm shadow">
-                            Sign In to Portal
-                        </button>
-                    </form>
-                </div>
-            </div>
-        `, user);
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        return res.end(html);
-    }
-
-    // SUPER ADMIN DASHBOARD
-    if (p.pathname === '/admin/super') {
-        if (!user || user.role !== 'superadmin') {
-            res.writeHead(302, { Location: '/login?role=superadmin' });
-            return res.end();
-        }
-
-        // Action: Toggle verification
-        if (p.query.toggle_verify) {
-            const biz = businesses.find(b => b.id === p.query.toggle_verify);
-            if (biz) biz.verified = biz.verified ? 0 : 1;
-            res.writeHead(302, { Location: '/admin/super' });
-            return res.end();
-        }
-
-        const html = layout('Super Admin Dashboard', `
-            <div class="max-w-6xl mx-auto px-4 py-8">
-                <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="bg-purple-100 text-purple-800 font-extrabold text-xs px-2.5 py-1 rounded-md border border-purple-300">👑 Super Admin Master Panel</span>
-                            <span class="text-xs text-slate-500">${user.name}</span>
-                        </div>
-                        <h1 class="text-2xl font-black text-slate-900 mt-1">Platform Master Administration</h1>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="/admin" class="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-700">Open Admin Panel</a>
-                        <a href="/logout" class="bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold px-3 py-2 rounded-lg hover:bg-rose-100">Logout</a>
-                    </div>
-                </div>
-
-                <!-- Platform KPI Cards -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                        <span class="text-xs text-slate-500 block">Total Revenue (INR)</span>
-                        <span class="text-xl font-black text-emerald-700">₹4,82,500</span>
-                        <span class="text-[10px] text-emerald-600 block mt-1"><i class="fa-solid fa-arrow-trend-up"></i> +18.4% this month</span>
-                    </div>
-                    <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                        <span class="text-xs text-slate-500 block">Registered Users</span>
-                        <span class="text-xl font-black text-blue-700">${users.length} Active</span>
-                        <span class="text-[10px] text-slate-400 block mt-1">Super, Admin, Sellers, Buyers</span>
-                    </div>
-                    <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                        <span class="text-xs text-slate-500 block">Listed Businesses</span>
-                        <span class="text-xl font-black text-slate-900">${businesses.length} Companies</span>
-                        <span class="text-[10px] text-emerald-600 block mt-1">${businesses.filter(b => b.verified).length} Verified</span>
-                    </div>
-                    <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                        <span class="text-xs text-slate-500 block">Total RFQs & Leads</span>
-                        <span class="text-xl font-black text-amber-600">${enquiries.length} Enquiries</span>
-                        <span class="text-[10px] text-slate-400 block mt-1">100% routing rate</span>
-                    </div>
-                </div>
-
-                <!-- Business Moderation & Verification -->
-                <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-8">
-                    <h3 class="font-bold text-sm text-slate-900 mb-4 flex items-center justify-between">
-                        <span>🏢 Business Directory & Verification Control</span>
-                        <span class="text-xs text-slate-400 font-normal">Instant Toggle</span>
-                    </h3>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200
+        const
