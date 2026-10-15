@@ -1,38 +1,20 @@
 const http = require('node:http');
 const url = require('node:url');
-const { DatabaseSync } = require('node:sqlite');
 
-// Database Auto-Initialization
-const db = new DatabaseSync('database.sqlite');
-db.exec(`
-    CREATE TABLE IF NOT EXISTS businesses (
-        id TEXT PRIMARY KEY, business_name TEXT, category TEXT, city TEXT,
-        phone TEXT, whatsapp TEXT, rating REAL, reviews INT, verified INT DEFAULT 1, gstin TEXT
-    );
-    CREATE TABLE IF NOT EXISTS products (
-        id TEXT PRIMARY KEY, business_id TEXT, title TEXT, wholesale_price REAL,
-        retail_price REAL, moq INT, stock INT, is_b2b INT, is_b2c INT, img TEXT
-    );
-    CREATE TABLE IF NOT EXISTS enquiries (
-        id TEXT PRIMARY KEY, buyer_name TEXT, buyer_phone TEXT, product_id TEXT,
-        business_id TEXT, quantity INT, city TEXT, requirements TEXT, status TEXT DEFAULT 'new'
-    );
-`);
+// Business Connect Database (Universal Node.js Engine)
+let businesses = [
+    { id: 'biz-1', business_name: 'Bharat Heavy Machines Ltd.', category: 'Industrial Machinery', city: 'Ahmedabad', phone: '+91 79 2589 1100', whatsapp: '919822233344', rating: 4.9, reviews: 58, verified: 1, gstin: '24AABCB1234F1Z8' },
+    { id: 'biz-2', business_name: 'Metro Tech Electronics Pvt Ltd', category: 'Electrical & Electronics', city: 'Bengaluru', phone: '+91 80 4123 9988', whatsapp: '919833344455', rating: 4.7, reviews: 42, verified: 1, gstin: '29AADCM4567H1Z2' },
+    { id: 'biz-3', business_name: 'Vardhman Premium Textiles', category: 'Textiles & Fabrics', city: 'Surat', phone: '+91 261 2456 789', whatsapp: '919822299988', rating: 4.8, reviews: 89, verified: 1, gstin: '24AAACV8899K1Z5' }
+];
 
-// Seed Indian businesses if empty
-const count = db.prepare('SELECT COUNT(*) as c FROM businesses').get().c;
-if (count === 0) {
-    db.prepare(`INSERT INTO businesses VALUES 
-        ('biz-1', 'Bharat Heavy Machines Ltd.', 'Industrial Machinery', 'Ahmedabad', '+91 79 2589 1100', '919822233344', 4.9, 58, 1, '24AABCB1234F1Z8'),
-        ('biz-2', 'Metro Tech Electronics Pvt Ltd', 'Electrical & Electronics', 'Bengaluru', '+91 80 4123 9988', '919833344455', 4.7, 42, 1, '29AADCM4567H1Z2'),
-        ('biz-3', 'Vardhman Premium Textiles', 'Textiles & Fabrics', 'Surat', '+91 261 2456 789', '919822299988', 4.8, 89, 1, '24AAACV8899K1Z5')
-    `).run();
-    db.prepare(`INSERT INTO products VALUES 
-        ('p1', 'biz-1', 'Automatic Packaging Machine', 185000, 225000, 1, 15, 1, 0, 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=500'),
-        ('p2', 'biz-2', 'Industrial 150W LED High Bay Light', 1350, 2499, 20, 500, 1, 1, 'https://images.unsplash.com/photo-1565814636199-ae8133055c1c?w=500'),
-        ('p3', 'biz-3', '100% Pure Organic Cotton Fabric', 195, 380, 100, 5000, 1, 1, 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=500')
-    `).run();
-}
+let products = [
+    { id: 'p1', business_id: 'biz-1', business_name: 'Bharat Heavy Machines Ltd.', title: 'Automatic Packaging Machine', wholesale_price: 185000, retail_price: 225000, moq: 1, stock: 15, img: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=500' },
+    { id: 'p2', business_id: 'biz-2', business_name: 'Metro Tech Electronics Pvt Ltd', title: 'Industrial 150W LED High Bay Light', wholesale_price: 1350, retail_price: 2499, moq: 20, stock: 500, img: 'https://images.unsplash.com/photo-1565814636199-ae8133055c1c?w=500' },
+    { id: 'p3', business_id: 'biz-3', business_name: 'Vardhman Premium Textiles', title: '100% Pure Organic Cotton Fabric', wholesale_price: 195, retail_price: 380, moq: 100, stock: 5000, img: 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=500' }
+];
+
+let enquiries = [];
 
 function parseBody(req) {
     return new Promise(res => {
@@ -83,16 +65,16 @@ const server = http.createServer(async (req, res) => {
     if (p.pathname === '/api/enquiries' && m === 'POST') {
         const b = await parseBody(req);
         const id = 'enq-' + Date.now();
-        db.prepare(`INSERT INTO enquiries VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new')`).run(
-            id, b.buyer_name || 'Buyer', b.buyer_phone || '', b.product_id || '', b.business_id || '', b.quantity || 1, b.city || 'India', b.requirements || ''
-        );
+        enquiries.push({
+            id, buyer_name: b.buyer_name || 'Buyer', buyer_phone: b.buyer_phone || '',
+            product_id: b.product_id || '', business_id: b.business_id || '', quantity: b.quantity || 1,
+            city: b.city || 'India', requirements: b.requirements || ''
+        });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true, id }));
     }
 
     if (p.pathname === '/' || p.pathname === '/index.html') {
-        const prods = db.prepare('SELECT p.*, b.business_name FROM products p JOIN businesses b ON b.id = p.business_id').all();
-        const bizs = db.prepare('SELECT * FROM businesses').all();
         const html = layout('Home', `
             <section class="bg-gradient-to-r from-[#0a1128] to-blue-950 text-white py-14 px-4 text-center">
                 <h1 class="text-3xl sm:text-4xl font-extrabold mb-3">Search. Connect. Trade in India.</h1>
@@ -106,7 +88,7 @@ const server = http.createServer(async (req, res) => {
             <section class="max-w-6xl mx-auto px-4 py-10">
                 <h2 class="text-xl font-bold mb-6 text-slate-900">Featured Verified Manufacturers</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    ${bizs.map(b => `
+                    ${businesses.map(b => `
                         <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                             <div class="flex justify-between items-start mb-2">
                                 <h3 class="font-bold text-sm text-slate-900">${b.business_name}</h3>
@@ -122,7 +104,7 @@ const server = http.createServer(async (req, res) => {
                 </div>
                 <h2 class="text-xl font-bold mb-6 text-slate-900">Trending B2B Wholesale Deals</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    ${prods.map(p => `
+                    ${products.map(p => `
                         <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between">
                             <div>
                                 <img src="${p.img}" class="w-full h-44 object-cover">
@@ -159,16 +141,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p.pathname === '/directory') {
-        let q = 'SELECT * FROM businesses WHERE 1=1';
-        let params = [];
-        if (p.query.city) { q += ' AND city LIKE ?'; params.push(`%${p.query.city}%`); }
-        if (p.query.search) { q += ' AND (business_name LIKE ? OR category LIKE ?)'; params.push(`%${p.query.search}%`, `%${p.query.search}%`); }
-        const bizs = db.prepare(q).all(...params);
+        let filtered = businesses;
+        if (p.query.city) {
+            filtered = filtered.filter(b => b.city.toLowerCase().includes(p.query.city.toLowerCase()));
+        }
+        if (p.query.search) {
+            filtered = filtered.filter(b => b.business_name.toLowerCase().includes(p.query.search.toLowerCase()) || b.category.toLowerCase().includes(p.query.search.toLowerCase()));
+        }
         const html = layout('Directory', `
             <div class="max-w-6xl mx-auto px-4 py-8">
                 <h1 class="text-2xl font-bold mb-4">India Business Directory (Justdial-Style)</h1>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${bizs.map(b => `
+                    ${filtered.map(b => `
                         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex justify-between items-center">
                             <div>
                                 <h3 class="font-bold text-sm text-slate-900">${b.business_name}</h3>
@@ -188,12 +172,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p.pathname === '/b2b' || p.pathname === '/marketplace') {
-        const prods = db.prepare('SELECT * FROM products').all();
         const html = layout(p.pathname === '/b2b' ? 'B2B Wholesale' : 'Marketplace', `
             <div class="max-w-6xl mx-auto px-4 py-8">
                 <h1 class="text-2xl font-bold mb-6">${p.pathname === '/b2b' ? 'B2B Wholesale Portal' : 'Retail Marketplace'}</h1>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    ${prods.map(pr => `
+                    ${products.map(pr => `
                         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                             <img src="${pr.img}" class="w-full h-40 object-cover rounded mb-2">
                             <h3 class="font-bold text-sm">${pr.title}</h3>
@@ -209,13 +192,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p.pathname === '/seller') {
-        const enqs = db.prepare('SELECT * FROM enquiries').all();
         const html = layout('Seller Dashboard', `
             <div class="max-w-6xl mx-auto px-4 py-8">
                 <h1 class="text-2xl font-bold mb-4">Seller Dashboard</h1>
                 <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6">
-                    <h3 class="font-bold text-sm mb-2">Incoming Buyer RFQs (${enqs.length})</h3>
-                    ${enqs.length === 0 ? '<p class="text-xs text-slate-500">No enquiries yet.</p>' : enqs.map(e => `
+                    <h3 class="font-bold text-sm mb-2">Incoming Buyer RFQs (${enquiries.length})</h3>
+                    ${enquiries.length === 0 ? '<p class="text-xs text-slate-500">No enquiries yet.</p>' : enquiries.map(e => `
                         <div class="border-b border-slate-100 py-2 text-xs flex justify-between">
                             <span><b>${e.buyer_name}</b> (${e.city}) &bull; Qty: ${e.quantity}</span>
                             <a href="tel:${e.buyer_phone}" class="text-blue-700 font-bold">Contact: ${e.buyer_phone}</a>
