@@ -1,12 +1,13 @@
 {
-  "name": "business-connect-demo",
+  "name": "business-connect",
   "version": "1.0.0",
-  "description": "Business Connect marketplace prototype",
+  "description": "Business Connect B2B & B2C Marketplace",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
+  "engines": {
+    "node": ">=22.0.0"
   },
-  "dependencies": {
-    "express": "^4.21.2"
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node init_db.js"
   }
 }
