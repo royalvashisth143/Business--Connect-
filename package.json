@@ -1,0 +1,12 @@
+{
+  "name": "business-connect",
+  "version": "1.0.0",
+  "description": "Business Connect B2B & B2C Marketplace",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
