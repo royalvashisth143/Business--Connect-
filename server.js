@@ -268,4 +268,89 @@ const server = http.createServer(async (req, res) => {
                 <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-800 text-xs">
                     <h3 class="font-bold text-sm mb-3">My RFQs & Quotations</h3>
                     <div class="flex justify-between items-center py-2 border-b">
-                        <div><p class="font-bold">Automatic Packaging M
+                        <div><p class="font-bold">Automatic Packaging Machine</p><p class="text-slate-400">Quotation: ₹1,85,000 &bull; Supplier: Bharat Heavy Machines</p></div>
+                        <button onclick="alert('Order placed successfully in INR!')" class="bg-emerald-600 text-white px-3 py-1 rounded font-bold">Confirm Order</button>
+                    </div>
+                </div>
+            </div>
+        `, user);
+        res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(html);
+    }
+
+    if (p.pathname === '/directory') {
+        const html = layout('Directory', `
+            <div class="max-w-6xl mx-auto px-4 py-8">
+                <h1 class="text-2xl font-black mb-6">India Business Directory (Justdial-Style)</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${businesses.map(b => `
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-slate-800 shadow-sm flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-sm">${b.name}</h3>
+                                <p class="text-xs text-slate-500">${b.category} &bull; ${b.city} &bull; Rating: ⭐ ${b.rating}</p>
+                                <p class="text-[11px] text-emerald-600 font-mono mt-1">GST: ${b.gstin}</p>
+                            </div>
+                            <div class="flex flex-col gap-1.5 text-xs">
+                                <a href="tel:${b.phone}" class="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-3 py-1 rounded text-center font-bold">Call</a>
+                                <a href="https://wa.me/${b.whatsapp}" class="bg-emerald-600 text-white px-3 py-1 rounded text-center font-bold">WhatsApp</a>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `, user);
+        res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(html);
+    }
+
+    if (p.pathname === '/b2b' || p.pathname === '/marketplace') {
+        const isB2B = p.pathname === '/b2b';
+        const html = layout(isB2B ? 'B2B Wholesale' : 'Marketplace', `
+            <div class="max-w-6xl mx-auto px-4 py-8">
+                <h1 class="text-2xl font-black mb-6">${isB2B ? 'B2B Wholesale Portal' : 'Retail Marketplace'}</h1>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    ${products.map(pr => `
+                        <div class="bg-white dark:bg-slate-900 border border-emerald-100 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                            <img src="${pr.img}" class="w-full h-40 object-cover rounded-lg mb-2">
+                            <div>
+                                <h3 class="font-bold text-sm">${pr.title}</h3>
+                                <p class="text-emerald-600 font-black text-sm mt-1">₹${(isB2B ? pr.wholesale_price : pr.retail_price).toLocaleString('en-IN')}</p>
+                            </div>
+                            <button onclick="alert('Inquiry sent!')" class="w-full bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold mt-3">${isB2B ? 'Request RFQ' : 'Buy Now'}</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `, user);
+        res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(html);
+    }
+
+    const html = layout('Home', `
+        <section class="bg-gradient-to-b from-emerald-800 to-emerald-950 text-white py-12 px-4 text-center">
+            <h1 class="text-3xl md:text-5xl font-black max-w-2xl mx-auto">Search. Connect. Trade in India.</h1>
+            <p class="text-xs md:text-sm text-emerald-100 mt-2">Over 50,000+ verified Indian manufacturers, wholesalers, and retail deals.</p>
+            <form action="/directory" method="GET" class="max-w-xl mx-auto mt-6 bg-white dark:bg-slate-900 p-2 rounded-xl flex gap-2">
+                <input type="text" name="search" placeholder="Search machines, electronics, textiles..." class="w-full text-xs p-2 text-slate-800 dark:text-white dark:bg-slate-800 rounded outline-none">
+                <button type="submit" class="bg-emerald-600 text-white px-4 py-2 rounded text-xs font-bold">Search</button>
+            </form>
+        </section>
+        <section class="max-w-6xl mx-auto px-4 py-8">
+            <h2 class="text-xl font-bold mb-4">Trending Wholesale Products</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                ${products.map(pr => `
+                    <div class="bg-white dark:bg-slate-900 border border-emerald-100 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                        <img src="${pr.img}" class="w-full h-40 object-cover rounded-lg mb-2">
+                        <div>
+                            <span class="text-[10px] text-emerald-600 font-bold uppercase">${pr.biz_name}</span>
+                            <h3 class="font-bold text-sm mt-1">${pr.title}</h3>
+                            <p class="text-emerald-600 font-black text-sm mt-1">₹${pr.wholesale_price.toLocaleString('en-IN')} <span class="text-xs text-slate-400 font-normal">/ MOQ: ${pr.moq}</span></p>
+                        </div>
+                        <button onclick="const q = prompt('Quantity:'); if(q) alert('Quotation request submitted!')" class="w-full bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold mt-3">Request Quotation (RFQ)</button>
+                    </div>
+                `).join('')}
+            </div>
+        </section>
+    `, user);
+    res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(html);
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => console.log('Business Connect live on port ' + PORT));
