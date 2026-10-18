@@ -1,10 +1,4 @@
-'use strict';
-/*
- * Business Connect India - role based B2B / B2C marketplace
- * Roles: super_admin, admin, merchant, supplier, seller, buyer
- * Zero dependencies. Run:  node server.js
- * Data is kept in memory (resets on restart) - swap the arrays for a DB for production.
- */
+
 const http = require('node:http');
 const crypto = require('node:crypto');
 
