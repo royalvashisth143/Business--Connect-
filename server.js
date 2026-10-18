@@ -1,3 +1,12 @@
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    platform: 'Business Connect Super Portal',
+    status: 'ONLINE 🚀',
+    version: '1.0.0',
+    timestamp: new Date()
+  });
+});
 /**
  * BUSINESS CONNECT - Complete Super Portal Server
  */
