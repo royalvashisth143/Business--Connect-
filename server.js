@@ -1,3 +1,9 @@
+
+/**
+ * BUSINESS CONNECT - Complete Super Portal Server
+ */
+const express = require('express');
+const cors = require('cors');
 // Root route
 app.get('/', (req, res) => {
   res.json({
@@ -7,11 +13,6 @@ app.get('/', (req, res) => {
     timestamp: new Date()
   });
 });
-/**
- * BUSINESS CONNECT - Complete Super Portal Server
- */
-const express = require('express');
-const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
