@@ -1,10 +1,22 @@
-
 /**
- * BUSINESS CONNECT - Complete Super Portal Server
+ * BUSINESS CONNECT - Complete Super Portal
  */
 const express = require('express');
 const cors = require('cors');
-// Root route
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+const QRCode = require('qrcode');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'business_connect_secret_2026';
+
+app.use(cors());
+app.use(express.json());
+
+// Root route (Sahi jagah par)
 app.get('/', (req, res) => {
   res.json({
     platform: 'Business Connect Super Portal',
@@ -13,6 +25,7 @@ app.get('/', (req, res) => {
     timestamp: new Date()
   });
 });
+
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
