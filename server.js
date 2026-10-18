@@ -1,217 +1,357 @@
 const http = require('node:http');
-const url = require('node:url');
+const crypto = require('node:crypto');
 
-let businesses = [
-    { id: 'biz-1', business_name: 'Bharat Heavy Machines Ltd.', category: 'Industrial Machinery', city: 'Ahmedabad', phone: '+91 79 2589 1100', whatsapp: '919822233344', rating: 4.9, reviews: 58, verified: 1, gstin: '24AABCB1234F1Z8' },
-    { id: 'biz-2', business_name: 'Metro Tech Electronics Pvt Ltd', category: 'Electrical & Electronics', city: 'Bengaluru', phone: '+91 80 4123 9988', whatsapp: '919833344455', rating: 4.7, reviews: 42, verified: 1, gstin: '29AADCM4567H1Z2' },
-    { id: 'biz-3', business_name: 'Vardhman Premium Textiles', category: 'Textiles & Fabrics', city: 'Surat', phone: '+91 261 2456 789', whatsapp: '919822299988', rating: 4.8, reviews: 89, verified: 1, gstin: '24AAACV8899K1Z5' }
+// ───────────────────────────── constants ─────────────────────────────
+const ROLES = ['super_admin', 'admin', 'merchant', 'supplier', 'seller', 'buyer'];
+const ADMIN_ROLES = ['super_admin', 'admin'];
+const VENDOR_ROLES = ['merchant', 'supplier', 'seller'];
+const SELF_REGISTER_ROLES = ['buyer', ...VENDOR_ROLES];
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', merchant: 'Merchant', supplier: 'Supplier', seller: 'Seller', buyer: 'Buyer' };
+
+const uid = p => p + '-' + crypto.randomBytes(4).toString('hex');
+const now = () => new Date().toISOString();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isAdmin = u => !!u && ADMIN_ROLES.includes(u.role);
+const isVendor = u => !!u && VENDOR_ROLES.includes(u.role);
+
+function hashPw(pw, salt = crypto.randomBytes(16).toString('hex')) {
+    return salt + ':' + crypto.scryptSync(pw, salt, 64).toString('hex');
+}
+function checkPw(pw, stored) {
+    const [salt, h] = String(stored).split(':');
+    const a = crypto.scryptSync(pw, salt, 64), b = Buffer.from(h, 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// ───────────────────────────── seed data ─────────────────────────────
+const locations = [
+    { id: 'loc-1', city: 'Ahmedabad', state: 'Gujarat', pincode: '380001', status: 'active' },
+    { id: 'loc-2', city: 'Bengaluru', state: 'Karnataka', pincode: '560001', status: 'active' },
+    { id: 'loc-3', city: 'Surat', state: 'Gujarat', pincode: '395003', status: 'active' },
+    { id: 'loc-4', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', status: 'active' },
+    { id: 'loc-5', city: 'Delhi', state: 'Delhi', pincode: '110001', status: 'active' }
 ];
 
-let products = [
-    { id: 'p1', business_id: 'biz-1', business_name: 'Bharat Heavy Machines Ltd.', title: 'Automatic Packaging Machine', wholesale_price: 185000, retail_price: 225000, moq: 1, stock: 15, img: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=500' },
-    { id: 'p2', business_id: 'biz-2', business_name: 'Metro Tech Electronics Pvt Ltd', title: 'Industrial 150W LED High Bay Light', wholesale_price: 1350, retail_price: 2499, moq: 20, stock: 500, img: 'https://images.unsplash.com/photo-1565814636199-ae8133055c1c?w=500' },
-    { id: 'p3', business_id: 'biz-3', business_name: 'Vardhman Premium Textiles', title: '100% Pure Organic Cotton Fabric', wholesale_price: 195, retail_price: 380, moq: 100, stock: 5000, img: 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=500' }
+const businesses = [
+    { id: 'biz-1', business_name: 'Bharat Heavy Machines Ltd.', category: 'Industrial Machinery', location_id: 'loc-1', phone: '+91 79 2589 1100', whatsapp: '919822233344', rating: 4.9, reviews: 58, verified: 1, gstin: '24AABCB1234F1Z8', status: 'active' },
+    { id: 'biz-2', business_name: 'Metro Tech Electronics Pvt Ltd', category: 'Electrical & Electronics', location_id: 'loc-2', phone: '+91 80 4123 9988', whatsapp: '919833344455', rating: 4.7, reviews: 42, verified: 1, gstin: '29AADCM4567H1Z2', status: 'active' },
+    { id: 'biz-3', business_name: 'Vardhman Premium Textiles', category: 'Textiles & Fabrics', location_id: 'loc-3', phone: '+91 261 2456 789', whatsapp: '919822299988', rating: 4.8, reviews: 89, verified: 1, gstin: '24AAACV8899K1Z5', status: 'active' }
 ];
 
-let enquiries = [];
+const products = [
+    { id: 'p1', business_id: 'biz-1', title: 'Automatic Packaging Machine', category: 'Machinery', wholesale_price: 185000, retail_price: 225000, moq: 1, stock: 15, img: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=500', status: 'active' },
+    { id: 'p2', business_id: 'biz-2', title: 'Industrial 150W LED High Bay Light', category: 'Lighting', wholesale_price: 1350, retail_price: 2499, moq: 20, stock: 500, img: 'https://images.unsplash.com/photo-1565814636199-ae8133055c1c?w=500', status: 'active' },
+    { id: 'p3', business_id: 'biz-3', title: '100% Pure Organic Cotton Fabric', category: 'Fabric', wholesale_price: 195, retail_price: 380, moq: 100, stock: 5000, img: 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=500', status: 'active' }
+];
 
-function parseBody(req) {
-    return new Promise(res => {
-        let b = ''; req.on('data', c => b += c);
-        req.on('end', () => { try { res(JSON.parse(b)); } catch { res({}); } });
+const enquiries = [];
+const users = [];
+const sessions = new Map(); // sid -> { uid, exp }
+
+(function seedUsers() {
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'superadmin@businessconnect.in').toLowerCase();
+    const superPw = process.env.SUPER_ADMIN_PASSWORD || 'Super@12345';
+    const mk = (role, name, email, pw, extra = {}) => users.push({
+        id: uid('usr'), name, email, phone: '', role, status: 'active', location_id: 'loc-4',
+        business_id: null, password_hash: hashPw(pw), created_at: now(), ...extra
+    });
+    mk('super_admin', 'Super Admin', superEmail, superPw);
+    console.log(`[seed] Super admin: ${superEmail} / ${process.env.SUPER_ADMIN_PASSWORD ? '(from env)' : superPw}`);
+    if (process.env.DEMO_DATA === '0') return;
+    const demo = 'Demo@12345';
+    mk('admin', 'Demo Admin', 'admin@businessconnect.in', demo);
+    mk('buyer', 'Demo Buyer', 'buyer@businessconnect.in', demo);
+    mk('supplier', 'Bharat Heavy Supplier', 'supplier@businessconnect.in', demo, { business_id: 'biz-1', location_id: 'loc-1' });
+    mk('merchant', 'Metro Tech Merchant', 'merchant@businessconnect.in', demo, { business_id: 'biz-2', location_id: 'loc-2' });
+    mk('seller', 'Vardhman Seller', 'seller@businessconnect.in', demo, { business_id: 'biz-3', location_id: 'loc-3' });
+    console.log(`[seed] Demo accounts (admin/buyer/supplier/merchant/seller @businessconnect.in) password: ${demo}`);
+    console.log('[seed] Change these before going live (set DEMO_DATA=0 to skip demo users).');
+})();
+
+// ───────────────────────────── validation ─────────────────────────────
+const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_RE = /^\+?[\d\s-]{7,18}$/;
+
+const S = {
+    location: {
+        city: { req: 1, max: 60 }, state: { req: 1, max: 60 },
+        pincode: { re: /^\d{6}$/ }, status: { vals: ['active', 'inactive'] }
+    },
+    user: {
+        name: { req: 1, max: 80 }, email: { req: 1, max: 120, re: EMAIL_RE, lower: 1 },
+        phone: { re: PHONE_RE }, role: { vals: ROLES },
+        status: { vals: ['active', 'pending', 'blocked'] }, location_id: {}
+    },
+    business: {
+        business_name: { req: 1, max: 100 }, category: { req: 1, max: 60 }, location_id: {},
+        phone: { re: PHONE_RE }, whatsapp: { re: /^\d{10,15}$/ },
+        gstin: { re: /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, upper: 1 }
+    },
+    businessAdmin: {
+        status: { vals: ['active', 'pending', 'blocked'] },
+        verified: { t: 'n', min: 0, max: 1, int: 1 }
+    },
+    product: {
+        title: { req: 1, max: 120 }, category: { max: 60 },
+        wholesale_price: { t: 'n', req: 1, min: 0, max: 1e9 }, retail_price: { t: 'n', req: 1, min: 0, max: 1e9 },
+        moq: { t: 'n', req: 1, min: 1, max: 1e7, int: 1 }, stock: { t: 'n', req: 1, min: 0, max: 1e9, int: 1 },
+        img: { max: 500, url: 1 }, status: { vals: ['active', 'inactive'] }
+    },
+    enquiry: {
+        buyer_name: { req: 1, max: 80 }, buyer_phone: { req: 1, re: PHONE_RE }, product_id: { req: 1 },
+        quantity: { t: 'n', req: 1, min: 1, max: 1e8, int: 1 }, city: { max: 60 }, requirements: { max: 500 }
+    }
+};
+
+function clean(schema, input, partial) {
+    const out = {};
+    for (const [k, r] of Object.entries(schema)) {
+        if (!(k in input)) { if (!partial && r.req) throw bad(`${k.replace(/_/g, ' ')} is required`); continue; }
+        let v = input[k];
+        if (r.t === 'n') {
+            if (v === '' || v === null || v === undefined) { if (r.req) throw bad(`${k.replace(/_/g, ' ')} is required`); continue; }
+            v = Number(v);
+            if (!Number.isFinite(v) || (r.int && !Number.isInteger(v)) || (r.min !== undefined && v < r.min) || (r.max !== undefined && v > r.max)) throw bad(`${k.replace(/_/g, ' ')} is invalid`);
+            out[k] = v; continue;
+        }
+        v = String(v ?? '').trim();
+        if (r.lower) v = v.toLowerCase();
+        if (r.upper) v = v.toUpperCase();
+        if (!v) { if (r.req) throw bad(`${k.replace(/_/g, ' ')} is required`); out[k] = ''; continue; }
+        if ((r.max && v.length > r.max) || (r.vals && !r.vals.includes(v)) || (r.re && !r.re.test(v)) || (r.url && !/^https?:\/\//i.test(v)))
+            throw bad(`${k.replace(/_/g, ' ')} is invalid`);
+        out[k] = v;
+    }
+    return out;
+}
+
+// ───────────────────────────── helpers ─────────────────────────────
+const findLoc = id => locations.find(l => l.id === id);
+const findBiz = id => businesses.find(b => b.id === id);
+const cityOf = id => (findLoc(id) || {}).city || '';
+const checkLocation = d => {
+    if ('location_id' in d) { if (d.location_id && !findLoc(d.location_id)) throw bad('Unknown location'); if (!d.location_id) d.location_id = null; }
+};
+
+const outLoc = l => l;
+const outUser = u => {
+    const { password_hash, ...rest } = u;
+    const l = findLoc(u.location_id), b = findBiz(u.business_id);
+    return { ...rest, city: l ? `${l.city}, ${l.state}` : '', business_name: b ? b.business_name : '' };
+};
+const outBiz = b => { const l = findLoc(b.location_id); return { ...b, city: l ? `${l.city}, ${l.state}` : '' }; };
+const outProd = p => { const b = findBiz(p.business_id); return { ...p, business_name: b ? b.business_name : '' }; };
+const outEnq = e => {
+    const p = products.find(x => x.id === e.product_id), b = findBiz(e.business_id);
+    return { ...e, product_title: p ? p.title : '(deleted product)', business_name: b ? b.business_name : '' };
+};
+
+function canManageUser(actor, t) {
+    if (actor.role === 'super_admin') return true;
+    if (actor.role === 'admin') return !ADMIN_ROLES.includes(t.role);
+    return false;
+}
+const canAssignRole = (actor, role) => actor.role === 'super_admin' ? ROLES.includes(role) : (actor.role === 'admin' && !ADMIN_ROLES.includes(role) && ROLES.includes(role));
+
+function createBusiness(owner, d) {
+    const b = {
+        id: uid('biz'), business_name: d.business_name, category: d.category || 'General',
+        location_id: owner.location_id || null, phone: owner.phone || '', whatsapp: '', rating: 0, reviews: 0,
+        verified: 0, gstin: d.gstin || '', status: owner.status === 'active' ? 'active' : 'pending'
+    };
+    businesses.push(b);
+    owner.business_id = b.id;
+    return b;
+}
+
+function dropUserSessions(userId) { for (const [k, s] of sessions) if (s.uid === userId) sessions.delete(k); }
+
+function syncBusinessWithUser(u) {
+    const b = findBiz(u.business_id);
+    if (!b) return;
+    if (u.status === 'active' && b.status !== 'active') b.status = 'active';
+    if (u.status === 'blocked') b.status = 'blocked';
+    if (u.status === 'pending') b.status = 'pending';
+}
+
+const hits = new Map(); // simple in-memory rate limiter
+function limited(key, max, windowMs) {
+    const t = Date.now(), h = hits.get(key);
+    if (!h || t - h.t > windowMs) { hits.set(key, { n: 1, t }); return false; }
+    h.n++;
+    return h.n > max;
+}
+
+// ───────────────────────────── http plumbing ─────────────────────────────
+function readBody(req) {
+    return new Promise((ok, no) => {
+        let b = '', n = 0;
+        req.on('data', c => { n += c.length; if (n > 100000) { no(bad('Payload too large', 413)); req.destroy(); return; } b += c; });
+        req.on('end', () => {
+            if (!b) return ok({});
+            try { const j = JSON.parse(b); ok(j && typeof j === 'object' && !Array.isArray(j) ? j : {}); } catch { no(bad('Invalid JSON')); }
+        });
+        req.on('error', no);
     });
 }
+const send = (res, status, type, body, headers = {}) => {
+    res.writeHead(status, {
+        'Content-Type': type + '; charset=utf-8', 'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN', 'Referrer-Policy': 'same-origin', ...headers
+    });
+    res.end(body);
+};
+const json = (res, status, obj, headers) => send(res, status, 'application/json', JSON.stringify(obj), headers);
+const page = (res, body, status = 200) => send(res, status, 'text/html', body);
 
-function layout(title, content) {
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>${title} | Business Connect India</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    </head><body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
-    <header class="bg-[#0a1128] text-white py-2 px-4 text-xs border-b border-slate-800">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <span>🇮🇳 <b>Business Connect India</b> &bull; Unified B2B & B2C Marketplace</span>
-            <span>Toll-Free: 1800-200-9898 &bull; INR (₹)</span>
-        </div>
-    </header>
-    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm px-4 py-3">
-        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-            <a href="/" class="flex items-center space-x-2">
-                <span class="w-9 h-9 bg-blue-700 text-white rounded-lg flex items-center justify-center font-bold text-lg">BC</span>
-                <span class="text-xl font-extrabold text-slate-900">Business<span class="text-blue-700">Connect</span></span>
-            </a>
-            <div class="flex items-center space-x-4 text-xs font-bold text-slate-700">
-                <a href="/" class="hover:text-blue-700">Home</a>
-                <a href="/directory" class="hover:text-blue-700">Directory</a>
-                <a href="/b2b" class="hover:text-blue-700">B2B Wholesale</a>
-                <a href="/marketplace" class="hover:text-blue-700">Retail</a>
-                <a href="/seller" class="bg-blue-700 text-white px-3 py-1.5 rounded-lg hover:bg-blue-800">Seller Panel</a>
-            </div>
-        </div>
-    </nav>
-    <main class="flex-1">${content}</main>
-    <footer class="bg-[#0a1128] text-slate-400 text-xs py-8 px-4 border-t border-slate-800 mt-12 text-center">
-        <p>&copy; 2026 Business Connect Technologies India Pvt Ltd. Make in India 🇮🇳 &bull; GST & MSME Compliant</p>
-    </footer>
-    <a href="https://wa.me/919811122233" target="_blank" class="fixed bottom-5 right-5 bg-emerald-600 hover:bg-emerald-700 text-white w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-2xl z-50"><i class="fa-brands fa-whatsapp"></i></a>
-    </body></html>`;
+function getUser(req) {
+    const m = /(?:^|;\s*)sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
+    if (!m) return null;
+    const s = sessions.get(m[1]);
+    if (!s || s.exp < Date.now()) { sessions.delete(m[1]); return null; }
+    const u = users.find(x => x.id === s.uid);
+    return u && u.status === 'active' ? u : null;
 }
+const need = u => { if (!u) throw bad('Please log in', 401); return u; };
+const needAdmin = u => { need(u); if (!isAdmin(u)) throw bad('Admin access required', 403); return u; };
+const needVendorOrAdmin = u => { need(u); if (!isAdmin(u) && !isVendor(u)) throw bad('Access denied', 403); return u; };
 
-const server = http.createServer(async (req, res) => {
-    const p = url.parse(req.url, true);
+// ───────────────────────────── API ─────────────────────────────
+async function api(req, res, pathname, user) {
     const m = req.method;
-
-    if (p.pathname === '/api/enquiries' && m === 'POST') {
-        const b = await parseBody(req);
-        const id = 'enq-' + Date.now();
-        enquiries.push({
-            id, buyer_name: b.buyer_name || 'Buyer', buyer_phone: b.buyer_phone || '',
-            product_id: b.product_id || '', business_id: b.business_id || '', quantity: b.quantity || 1,
-            city: b.city || 'India', requirements: b.requirements || ''
-        });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: true, id }));
+    const parts = pathname.split('/').filter(Boolean); // ['api', resource, id]
+    const r = parts[1], id = parts[2];
+    const ip = req.socket.remoteAddress || 'x';
+    let b = {};
+    if (m === 'POST' || m === 'PUT') {
+        if (!/application\/json/i.test(req.headers['content-type'] || '')) throw bad('Content-Type must be application/json', 415);
+        b = await readBody(req);
     }
 
-    if (p.pathname === '/' || p.pathname === '/index.html') {
-        const html = layout('Home', `
-            <section class="bg-gradient-to-r from-[#0a1128] to-blue-950 text-white py-14 px-4 text-center">
-                <h1 class="text-3xl sm:text-4xl font-extrabold mb-3">Search. Connect. Trade in India.</h1>
-                <p class="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto mb-6">Over 50,000+ verified Indian manufacturers, suppliers, and wholesale deals.</p>
-                <form action="/directory" class="max-w-xl mx-auto flex bg-white rounded-lg p-1.5 shadow-xl text-slate-800 text-xs">
-                    <input type="text" name="city" placeholder="City (Mumbai, Delhi, Surat...)" class="w-1/3 p-2 outline-none border-r border-slate-200">
-                    <input type="text" name="search" placeholder="Search machines, LED, fabrics..." class="flex-1 p-2 outline-none">
-                    <button class="bg-blue-700 text-white px-5 py-2 font-bold rounded hover:bg-blue-800">Search</button>
-                </form>
-            </section>
-            <section class="max-w-6xl mx-auto px-4 py-10">
-                <h2 class="text-xl font-bold mb-6 text-slate-900">Featured Verified Manufacturers</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    ${businesses.map(b => `
-                        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                            <div class="flex justify-between items-start mb-2">
-                                <h3 class="font-bold text-sm text-slate-900">${b.business_name}</h3>
-                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">Verified</span>
-                            </div>
-                            <p class="text-xs text-slate-500 mb-4">${b.category} &bull; ${b.city} &bull; GST: ${b.gstin}</p>
-                            <div class="flex space-x-2 text-xs">
-                                <a href="tel:${b.phone}" class="flex-1 bg-slate-100 text-center py-2 rounded font-bold hover:bg-slate-200"><i class="fa-solid fa-phone mr-1"></i> Call</a>
-                                <a href="https://wa.me/${b.whatsapp}" class="flex-1 bg-emerald-600 text-white text-center py-2 rounded font-bold hover:bg-emerald-700"><i class="fa-brands fa-whatsapp mr-1"></i> WhatsApp</a>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <h2 class="text-xl font-bold mb-6 text-slate-900">Trending B2B Wholesale Deals</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    ${products.map(p => `
-                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between">
-                            <div>
-                                <img src="${p.img}" class="w-full h-44 object-cover">
-                                <div class="p-4">
-                                    <span class="text-[10px] text-blue-700 font-bold uppercase">${p.business_name}</span>
-                                    <h4 class="font-bold text-sm text-slate-900 mt-1">${p.title}</h4>
-                                    <p class="text-emerald-700 font-extrabold text-base mt-2">₹${p.wholesale_price.toLocaleString('en-IN')} <span class="text-xs text-slate-400 font-normal">/ MOQ: ${p.moq}</span></p>
-                                </div>
-                            </div>
-                            <div class="p-4 pt-0">
-                                <button onclick="promptEnq('${p.id}', '${p.business_id}')" class="w-full bg-blue-700 text-white py-2 rounded font-bold text-xs hover:bg-blue-800">Request Quotation (RFQ)</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </section>
-            <script>
-                async function promptEnq(pid, bid) {
-                    const name = prompt('Enter your name for quotation:') || 'Buyer';
-                    const phone = prompt('Enter mobile number:') || '+91 9800000000';
-                    const qty = prompt('Quantity needed:') || '50';
-                    const res = await fetch('/api/enquiries', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ buyer_name: name, buyer_phone: phone, product_id: pid, business_id: bid, quantity: qty })
-                    });
-                    const d = await res.json();
-                    if(d.success) alert('Success! RFQ sent. Ref ID: ' + d.id);
-                }
-            </script>
-        `);
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        return res.end(html);
+    // ── auth ──
+    if (r === 'login' && m === 'POST') {
+        if (limited('login:' + ip, 10, 15 * 60 * 1000)) throw bad('Too many attempts. Try again later.', 429);
+        const email = String(b.email || '').trim().toLowerCase();
+        const u = users.find(x => x.email === email);
+        if (!u || !checkPw(String(b.password || ''), u.password_hash)) throw bad('Invalid email or password', 401);
+        if (u.status === 'pending') throw bad('Your account is awaiting admin approval', 403);
+        if (u.status !== 'active') throw bad('Your account is blocked. Contact support.', 403);
+        const sid = crypto.randomBytes(24).toString('hex');
+        sessions.set(sid, { uid: u.id, exp: Date.now() + 24 * 3600 * 1000 });
+        const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+        return json(res, 200, { success: true, role: u.role }, { 'Set-Cookie': `sid=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${secure}` });
     }
-
-    if (p.pathname === '/directory') {
-        let filtered = businesses;
-        if (p.query.city) {
-            filtered = filtered.filter(b => b.city.toLowerCase().includes(p.query.city.toLowerCase()));
+    if (r === 'logout' && m === 'POST') {
+        const c = /sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
+        if (c) sessions.delete(c[1]);
+        return json(res, 200, { success: true }, { 'Set-Cookie': 'sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' });
+    }
+    if (r === 'register' && m === 'POST') {
+        if (limited('reg:' + ip, 10, 3600 * 1000)) throw bad('Too many registrations. Try later.', 429);
+        const role = String(b.role || '');
+        if (!SELF_REGISTER_ROLES.includes(role)) throw bad('Invalid role');
+        const d = clean({ name: S.user.name, email: S.user.email, phone: S.user.phone, location_id: S.user.location_id }, b, false);
+        checkLocation(d);
+        const pw = String(b.password || '');
+        if (pw.length < 8 || pw.length > 100) throw bad('Password must be 8-100 characters');
+        if (users.some(x => x.email === d.email)) throw bad('Email already registered', 409);
+        const u = { id: uid('usr'), ...d, role, status: role === 'buyer' ? 'active' : 'pending', business_id: null, password_hash: hashPw(pw), created_at: now() };
+        if (VENDOR_ROLES.includes(role)) {
+            const bd = clean({ business_name: S.business.business_name, category: S.business.category, gstin: S.business.gstin }, b, false);
+            createBusiness(u, bd);
         }
-        if (p.query.search) {
-            filtered = filtered.filter(b => b.business_name.toLowerCase().includes(p.query.search.toLowerCase()) || b.category.toLowerCase().includes(p.query.search.toLowerCase()));
+        users.push(u);
+        return json(res, 201, { success: true, pending: u.status === 'pending' });
+    }
+    if (r === 'me') {
+        need(user);
+        if (m === 'GET') return json(res, 200, outUser(user));
+        if (m === 'PUT') {
+            const d = clean({ name: S.user.name, phone: S.user.phone, location_id: S.user.location_id }, b, true);
+            checkLocation(d);
+            if (b.new_password) {
+                if (!checkPw(String(b.current_password || ''), user.password_hash)) throw bad('Current password is incorrect');
+                const np = String(b.new_password);
+                if (np.length < 8 || np.length > 100) throw bad('New password must be 8-100 characters');
+                user.password_hash = hashPw(np);
+            }
+            Object.assign(user, d);
+            return json(res, 200, outUser(user));
         }
-        const html = layout('Directory', `
-            <div class="max-w-6xl mx-auto px-4 py-8">
-                <h1 class="text-2xl font-bold mb-4">India Business Directory (Justdial-Style)</h1>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${filtered.map(b => `
-                        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex justify-between items-center">
-                            <div>
-                                <h3 class="font-bold text-sm text-slate-900">${b.business_name}</h3>
-                                <p class="text-xs text-slate-500">${b.category} &bull; ${b.city} &bull; Rating: ⭐ ${b.rating}</p>
-                            </div>
-                            <div class="space-x-2 text-xs">
-                                <a href="tel:${b.phone}" class="bg-slate-100 px-3 py-1.5 rounded font-bold">Call</a>
-                                <a href="https://wa.me/${b.whatsapp}" class="bg-emerald-600 text-white px-3 py-1.5 rounded font-bold">WhatsApp</a>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `);
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        return res.end(html);
     }
 
-    if (p.pathname === '/b2b' || p.pathname === '/marketplace') {
-        const html = layout(p.pathname === '/b2b' ? 'B2B Wholesale' : 'Marketplace', `
-            <div class="max-w-6xl mx-auto px-4 py-8">
-                <h1 class="text-2xl font-bold mb-6">${p.pathname === '/b2b' ? 'B2B Wholesale Portal' : 'Retail Marketplace'}</h1>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    ${products.map(pr => `
-                        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                            <img src="${pr.img}" class="w-full h-40 object-cover rounded mb-2">
-                            <h3 class="font-bold text-sm">${pr.title}</h3>
-                            <p class="text-blue-700 font-bold text-sm mt-1">₹${pr.wholesale_price.toLocaleString('en-IN')}</p>
-                            <button onclick="alert('Order / RFQ processed for ${pr.title}')" class="w-full bg-blue-700 text-white py-1.5 rounded text-xs font-bold mt-3">Buy / Inquire</button>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `);
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        return res.end(html);
+    // ── public enquiry (guests + buyers) ──
+    if (r === 'enquiries' && m === 'POST') {
+        if (limited('enq:' + ip, 20, 3600 * 1000)) throw bad('Too many enquiries. Try later.', 429);
+        const d = clean(S.enquiry, b, false);
+        const p = products.find(x => x.id === d.product_id);
+        const biz = p && findBiz(p.business_id);
+        if (!p || p.status !== 'active' || !biz || biz.status !== 'active') throw bad('Product not available', 404);
+        const e = {
+            id: uid('enq'), ...d, business_id: p.business_id, buyer_user_id: user && user.role === 'buyer' ? user.id : null,
+            city: d.city || 'India', status: 'new', created_at: now()
+        };
+        enquiries.push(e);
+        return json(res, 201, { success: true, id: e.id });
     }
 
-    if (p.pathname === '/seller') {
-        const html = layout('Seller Dashboard', `
-            <div class="max-w-6xl mx-auto px-4 py-8">
-                <h1 class="text-2xl font-bold mb-4">Seller Dashboard</h1>
-                <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6">
-                    <h3 class="font-bold text-sm mb-2">Incoming Buyer RFQs (${enquiries.length})</h3>
-                    ${enquiries.length === 0 ? '<p class="text-xs text-slate-500">No enquiries yet.</p>' : enquiries.map(e => `
-                        <div class="border-b border-slate-100 py-2 text-xs flex justify-between">
-                            <span><b>${e.buyer_name}</b> (${e.city}) &bull; Qty: ${e.quantity}</span>
-                            <a href="tel:${e.buyer_phone}" class="text-blue-700 font-bold">Contact: ${e.buyer_phone}</a>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `);
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        return res.end(html);
+    // ── locations ──
+    if (r === 'locations') {
+        if (m === 'GET') return json(res, 200, (isAdmin(user) ? locations : locations.filter(l => l.status === 'active')).map(outLoc));
+        needAdmin(user);
+        if (m === 'POST') {
+            const d = clean(S.location, b, false);
+            if (locations.some(l => l.city.toLowerCase() === d.city.toLowerCase() && l.state.toLowerCase() === d.state.toLowerCase())) throw bad('Location already exists', 409);
+            const l = { id: uid('loc'), status: 'active', pincode: '', ...d };
+            locations.push(l);
+            return json(res, 201, l);
+        }
+        const l = locations.find(x => x.id === id);
+        if (!l) throw bad('Location not found', 404);
+        if (m === 'PUT') {
+            const d = clean(S.location, b, true);
+            const city = (d.city ?? l.city).toLowerCase(), state = (d.state ?? l.state).toLowerCase();
+            if (locations.some(x => x.id !== l.id && x.city.toLowerCase() === city && x.state.toLowerCase() === state)) throw bad('Location already exists', 409);
+            Object.assign(l, d);
+            return json(res, 200, l);
+        }
+        if (m === 'DELETE') {
+            const n = users.filter(x => x.location_id === l.id).length + businesses.filter(x => x.location_id === l.id).length;
+            if (n) throw bad(`Location is used by ${n} user/business record(s). Deactivate it instead.`, 409);
+            locations.splice(locations.indexOf(l), 1);
+            return json(res, 200, { success: true });
+        }
     }
 
-    res.writeHead(302, { Location: '/' });
-    res.end();
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => console.log('Business Connect live on port ' + PORT));
+    // ── users ──
+    if (r === 'users') {
+        needAdmin(user);
+        if (m === 'GET') return json(res, 200, users.map(outUser));
+        if (m === 'POST') {
+            const d = clean(S.user, b, false);
+            if (!canAssignRole(user, d.role)) throw bad('You cannot create this role', 403);
+            checkLocation(d);
+            const pw = String(b.password || '');
+            if (pw.length < 8 || pw.length > 100) throw bad('Password must be 8-100 characters');
+            if (users.some(x => x.email === d.email)) throw bad('Email already registered', 409);
+            const u = { id: uid('usr'), phone: '', status: 'active', location_id: null, ...d, business_id: null, password_hash: hashPw(pw), created_at: now() };
+            if (VENDOR_ROLES.includes(u.role)) {
+                const bd = clean({ business_name: S.business.business_name, category: S.business.category }, { business_name: b.business_name || u.name + ' Business', category: b.category || 'General' }, false);
+                createBusiness(u, bd);
+            }
+            users.push(u);
+            return json(res, 201, outUser(u));
+        }
+        const t = users.find(x => x.id === id);
+        if (!t) throw bad('User not found', 404);
+        if (!canManageUser(user, t)) throw bad('You cannot manage this user', 403);
+        if (m === 'PUT') {
+            const d = clean(S.user, b, true);
+            checkLocation(d);
+            if (d.email && users.some(x => x.id !== t.id && x.email === d.email)) throw bad('Email already registered', 409);
+            if (d.role && d.role !== t.role) {
+                if (t.id === user.id) throw bad('You cannot change your own role');
+                if (!canAssignRole(user, d.role)) throw bad('You cannot assign this role', 403);
+            }
+            if (d.status && d.status !== 'active' && t.id === user.id) throw bad('You cannot deactivate
