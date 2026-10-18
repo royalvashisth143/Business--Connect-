@@ -1,377 +1,592 @@
-/**
- * BUSINESS CONNECT - Complete Production Server Engine
- * Node.js + Express + JWT + RBAC + REST API
- */
+const fs = require('fs');
+const path = require('path');
 
-const express = require('express');
-const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
-const QRCode = require('qrcode');
-require('dotenv').config();
-
-const app = express();
-const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'business_connect_super_secret_key_2026';
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// ==========================================
-// IN-MEMORY DATABASE MOCK
-// ==========================================
-const db = {
-  users: [
-    {
-      id: 'user-super-1',
-      fullName: 'Super Admin',
-      email: 'superadmin@businessconnect.com',
-      passwordHash: bcrypt.hashSync('Admin@123', 10),
-      role: 'SUPER_ADMIN',
-      status: 'VERIFIED',
-      createdAt: new Date()
+const files = {
+  'package.json': JSON.stringify({
+    "name": "business-connect",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint"
     },
-    {
-      id: 'user-mfg-1',
-      fullName: 'Rajesh Kumar',
-      email: 'manufacturer@example.com',
-      passwordHash: bcrypt.hashSync('Mfg@123', 10),
-      role: 'MANUFACTURER',
-      status: 'VERIFIED',
-      createdAt: new Date()
+    "dependencies": {
+      "@supabase/ssr": "^0.5.2",
+      "@supabase/supabase-js": "^2.48.1",
+      "clsx": "^2.1.1",
+      "lucide-react": "^0.475.0",
+      "next": "15.1.6",
+      "react": "^19.0.0",
+      "react-dom": "^19.0.0",
+      "tailwind-merge": "^3.0.1"
     },
-    {
-      id: 'user-buyer-1',
-      fullName: 'Amit Sharma',
-      email: 'buyer@example.com',
-      passwordHash: bcrypt.hashSync('Buyer@123', 10),
-      role: 'BUYER',
-      status: 'VERIFIED',
-      createdAt: new Date()
+    "devDependencies": {
+      "@types/node": "^22.13.1",
+      "@types/react": "^19.0.8",
+      "@types/react-dom": "^19.0.3",
+      "postcss": "^8.5.1",
+      "tailwindcss": "^3.4.17",
+      "typescript": "^5.7.3"
     }
+  }, null, 2),
+
+  '.env.example': `# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://your-supabase-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+
+# App URL
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Payment Gateway (Razorpay)
+NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+
+# Optional Maps Provider
+NEXT_PUBLIC_MAPS_API_KEY=your_maps_api_key
+`,
+
+  'tailwind.config.ts': `import type { Config } from "tailwindcss";
+
+const config: Config = {
+  darkMode: "class",
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  businesses: [
-    {
-      id: 'bus-1',
-      ownerId: 'user-mfg-1',
-      companyName: 'Apex Industrial Heavy Machinery Ltd',
-      slug: 'apex-industrial-heavy-machinery',
-      businessType: 'MANUFACTURER',
-      gstNumber: '07AABCA1234F1Z5',
-      verification: 'VERIFIED',
-      description: 'Leading manufacturer of heavy industrial CNC machines and lathe equipment.',
-      country: 'India',
-      state: 'Haryana',
-      city: 'Gurugram',
-      locality: 'Udyog Vihar',
-      pinCode: '122016',
-      whatsappNumber: '919876543210',
-      createdAt: new Date()
-    }
-  ],
-  products: [
-    {
-      id: 'prod-1',
-      businessId: 'bus-1',
-      ownerId: 'user-mfg-1',
-      title: 'High-Precision CNC Lathe Machine X-500',
-      slug: 'high-precision-cnc-lathe-machine-x-500',
-      sku: 'CNC-X500-01',
-      categoryId: 'cat-machinery',
-      description: 'Heavy duty CNC lathe machine with automated tool changer and high torque spindle.',
-      retailPrice: 1250000,
-      wholesalePrice: 1100000,
-      minOrderQuantity: 1,
-      stockQuantity: 15,
-      isApproved: true,
-      createdAt: new Date()
-    }
-  ],
-  categories: [
-    { id: 'cat-machinery', name: 'Industrial Machinery', slug: 'industrial-machinery', parentId: null },
-    { id: 'cat-agri', name: 'Agriculture', slug: 'agriculture', parentId: null },
-    { id: 'cat-electronics', name: 'Electronics', slug: 'electronics', parentId: null }
-  ],
-  locations: [
-    { id: 'loc-1', country: 'India', state: 'Haryana', district: 'Gurugram', city: 'Gurugram', locality: 'Udyog Vihar', pinCode: '122016' }
-  ],
-  enquiries: [],
-  socialLinks: [],
-  auditLogs: []
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: "#16834A",
+          dark: "#0D5F38",
+          light: "#1FA861",
+        },
+        brand: {
+          bgLight: "#F5F8F6",
+          bgDark: "#101713",
+          surfaceDark: "#18221C",
+          textLight: "#18231D",
+          textDark: "#E2E8F0",
+          muted: "#66736B",
+        },
+      },
+    },
+  },
+  plugins: [],
+};
+export default config;
+`,
+
+  'postcss.config.js': `module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+`,
+
+  'next.config.js': `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
 };
 
-// ==========================================
-// AUTHENTICATION & RBAC MIDDLEWARE
-// ==========================================
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Access token required' });
+module.exports = nextConfig;
+`,
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
-    req.user = user;
-    next();
-  });
+  'tsconfig.json': JSON.stringify({
+    "compilerOptions": {
+      "target": "ES2017",
+      "lib": ["dom", "dom.iterable", "esnext"],
+      "allowJs": true,
+      "skipLibCheck": true,
+      "strict": true,
+      "noEmit": true,
+      "esModuleInterop": true,
+      "module": "esnext",
+      "moduleResolution": "bundler",
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "jsx": "preserve",
+      "incremental": true,
+      "plugins": [{ "name": "next" }],
+      "paths": { "@/*": ["./src/*"] }
+    },
+    "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+    "exclude": ["node_modules"]
+  }, null, 2),
+
+  'supabase/schema.sql': `-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- User Roles Enum
+create type user_role as enum ('SUPER_ADMIN', 'ADMIN', 'SELLER', 'SUPPLIER', 'BUYER', 'CUSTOMER', 'SUPPORT_STAFF');
+
+-- Profiles Table
+create table public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  full_name text not null,
+  email text unique not null,
+  phone text,
+  role user_role default 'CUSTOMER',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Businesses Table
+create table public.businesses (
+  id uuid default uuid_generate_v4() primary key,
+  owner_id uuid references public.profiles(id) on delete cascade not null,
+  business_name text not null,
+  slug text unique not null,
+  category text not null,
+  description text,
+  logo_url text,
+  gstin text,
+  address text,
+  city text not null,
+  state text not null,
+  pincode text not null,
+  phone text not null,
+  whatsapp text,
+  verified boolean default false,
+  featured boolean default false,
+  status text default 'PENDING',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Products Table
+create table public.products (
+  id uuid default uuid_generate_v4() primary key,
+  business_id uuid references public.businesses(id) on delete cascade not null,
+  name text not null,
+  slug text unique not null,
+  sku text,
+  category text not null,
+  description text,
+  wholesale_price numeric(10,2),
+  retail_price numeric(10,2),
+  moq integer default 1,
+  stock integer default 0,
+  images text[],
+  is_b2b boolean default true,
+  is_b2c boolean default true,
+  approved boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- RFQs Table
+create table public.rfqs (
+  id uuid default uuid_generate_v4() primary key,
+  buyer_id uuid references public.profiles(id) on delete cascade not null,
+  title text not null,
+  category text not null,
+  description text not null,
+  quantity integer not null,
+  unit text not null,
+  delivery_city text not null,
+  status text default 'OPEN',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Orders Table
+create table public.orders (
+  id uuid default uuid_generate_v4() primary key,
+  customer_id uuid references public.profiles(id) on delete cascade not null,
+  total_amount numeric(10,2) not null,
+  status text default 'PENDING',
+  payment_id text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS
+alter table public.profiles enable row level security;
+alter table public.businesses enable row level security;
+alter table public.products enable row level security;
+alter table public.rfqs enable row level security;
+alter table public.orders enable row level security;
+`,
+
+  'src/types/index.ts': `export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'SELLER' | 'SUPPLIER' | 'BUYER' | 'CUSTOMER' | 'SUPPORT_STAFF';
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  created_at: string;
 }
 
-function requireRoles(...allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions for this action' });
-    }
-    next();
-  };
+export interface Business {
+  id: string;
+  owner_id: string;
+  business_name: string;
+  slug: string;
+  category: string;
+  description?: string;
+  logo_url?: string;
+  gstin?: string;
+  address?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone: string;
+  whatsapp?: string;
+  verified: boolean;
+  featured: boolean;
+  status: string;
 }
 
-// ==========================================
-// ROOT & HEALTH CHECK ROUTES
-// ==========================================
-app.get('/', (req, res) => {
-  res.json({
-    platform: 'Business Connect Super Portal',
-    status: 'ONLINE 🚀',
-    version: '1.0.0',
-    timestamp: new Date()
-  });
-});
+export interface Product {
+  id: string;
+  business_id: string;
+  name: string;
+  slug: string;
+  sku?: string;
+  category: string;
+  description?: string;
+  wholesale_price?: number;
+  retail_price?: number;
+  moq: number;
+  stock: number;
+  images: string[];
+  is_b2b: boolean;
+  is_b2c: boolean;
+  approved: boolean;
+}
+`,
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ONLINE', platform: 'Business Connect Super Portal', timestamp: new Date() });
-});
+  'src/lib/supabase/client.ts': `import { createBrowserClient } from '@supabase/ssr';
 
-// ==========================================
-// 1. AUTHENTICATION ENDPOINTS
-// ==========================================
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { fullName, email, password, role, phone } = req.body;
-    if (!fullName || !email || !password) {
-      return res.status(400).json({ error: 'Missing required fields' });
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+`,
+
+  'src/lib/supabase/server.ts': `import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {}
+        },
+      },
     }
+  );
+}
+`,
 
-    const existingUser = db.users.find(u => u.email === email);
-    if (existingUser) return res.status(400).json({ error: 'Email already registered' });
+  'src/app/globals.css': `@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = {
-      id: `user-${uuidv4()}`,
-      fullName,
-      email,
-      passwordHash,
-      phone: phone || null,
-      role: role || 'BUYER',
-      status: role === 'BUYER' ? 'VERIFIED' : 'PENDING',
-      createdAt: new Date()
-    };
+:root {
+  --background: #F5F8F6;
+  --foreground: #18231D;
+}
 
-    db.users.push(newUser);
-    db.auditLogs.push({ id: uuidv4(), userId: newUser.id, action: 'USER_REGISTERED', details: { email, role }, createdAt: new Date() });
+.dark {
+  --background: #101713;
+  --foreground: #E2E8F0;
+}
 
-    const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ message: 'Registration successful', token, user: { id: newUser.id, fullName, email, role: newUser.role } });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+`,
 
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = db.users.find(u => u.email === email);
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+  'src/components/ThemeToggle.tsx': `'use client';
+
+import { useEffect, useState } from 'react';
+import { Sun, Moon } from 'lucide-react';
+
+export default function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains('dark');
+    setDark(isDark);
+  }, []);
+
+  const toggleTheme = () => {
+    if (dark) {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      setDark(false);
+    } else {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      setDark(true);
     }
-
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Login successful', token, user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role, status: user.status } });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  const user = db.users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const { passwordHash, ...safeUser } = user;
-  res.json(safeUser);
-});
-
-// ==========================================
-// 2. BUSINESS DIRECTORY & CRUD ENDPOINTS
-// ==========================================
-app.get('/api/businesses', (req, res) => {
-  const { type, search, city, verified } = req.query;
-  let results = [...db.businesses];
-
-  if (type) results = results.filter(b => b.businessType === type);
-  if (city) results = results.filter(b => b.city.toLowerCase() === city.toLowerCase());
-  if (verified) results = results.filter(b => b.verification === verified.toUpperCase());
-  if (search) {
-    const q = search.toLowerCase();
-    results = results.filter(b => b.companyName.toLowerCase().includes(q) || (b.description && b.description.toLowerCase().includes(q)));
-  }
-
-  res.json(results);
-});
-
-app.post('/api/businesses', authenticateToken, requireRoles('MANUFACTURER', 'SUPPLIER', 'SELLER', 'BUSINESS_OWNER', 'SUPER_ADMIN', 'ADMIN'), (req, res) => {
-  const { companyName, businessType, gstNumber, description, country, state, city, locality, pinCode, whatsappNumber, website } = req.body;
-  if (!companyName || !businessType || !city) {
-    return res.status(400).json({ error: 'Company name, business type, and city are required' });
-  }
-
-  const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const newBusiness = {
-    id: `bus-${uuidv4()}`,
-    ownerId: req.user.id,
-    companyName,
-    slug,
-    businessType,
-    gstNumber: gstNumber || null,
-    verification: 'PENDING',
-    description: description || '',
-    country: country || 'India',
-    state: state || '',
-    city,
-    locality: locality || '',
-    pinCode: pinCode || '',
-    whatsappNumber: whatsappNumber || '',
-    website: website || '',
-    createdAt: new Date()
   };
 
-  db.businesses.push(newBusiness);
-  res.status(201).json({ message: 'Business created successfully', business: newBusiness });
-});
+  return (
+    <button
+      onClick={toggleTheme}
+      aria-label="Toggle Theme"
+      className="p-2 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 transition"
+    >
+      {dark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-700" />}
+    </button>
+  );
+}
+`,
 
-// ==========================================
-// 3. PRODUCT CATALOGUE & CRUD ENDPOINTS
-// ==========================================
-app.get('/api/products', (req, res) => {
-  const { search, categoryId, businessId } = req.query;
-  let results = db.products.filter(p => p.isApproved);
+  'src/components/Navbar.tsx': `'use client';
 
-  if (categoryId) results = results.filter(p => p.categoryId === categoryId);
-  if (businessId) results = results.filter(p => p.businessId === businessId);
-  if (search) {
-    const q = search.toLowerCase();
-    results = results.filter(p => p.title.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
-  }
+import Link from 'next/link';
+import { Building2, ShoppingBag, Search, Menu, X } from 'lucide-react';
+import { useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 
-  res.json(results);
-});
+export default function Navbar() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-app.post('/api/products', authenticateToken, requireRoles('MANUFACTURER', 'SUPPLIER', 'SELLER', 'SUPER_ADMIN', 'ADMIN'), (req, res) => {
-  const { title, sku, businessId, categoryId, description, retailPrice, wholesalePrice, minOrderQuantity, stockQuantity } = req.body;
-  if (!title || !sku || !businessId || !categoryId) {
-    return res.status(400).json({ error: 'Title, SKU, businessId, and categoryId are required' });
-  }
+  return (
+    <header className="sticky top-0 z-50 bg-white dark:bg-[#18221C] border-b border-gray-200 dark:border-gray-800 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <Link href="/" className="flex items-center space-x-2">
+          <div className="bg-primary text-white p-2 rounded-lg flex items-center justify-center font-bold text-xl">
+            BC
+          </div>
+          <div>
+            <span className="text-xl font-black tracking-tight text-gray-900 dark:text-white">BUSINESS</span>
+            <span className="text-xl font-bold text-primary ml-1">CONNECT</span>
+          </div>
+        </Link>
 
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const newProduct = {
-    id: `prod-${uuidv4()}`,
-    businessId,
-    ownerId: req.user.id,
-    title,
-    slug,
-    sku,
-    categoryId,
-    description: description || '',
-    retailPrice: retailPrice ? parseFloat(retailPrice) : null,
-    wholesalePrice: wholesalePrice ? parseFloat(wholesalePrice) : null,
-    minOrderQuantity: minOrderQuantity ? parseInt(minOrderQuantity) : 1,
-    stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
-    isApproved: req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN',
-    createdAt: new Date()
+        <nav className="hidden lg:flex items-center space-x-6 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <Link href="/directory" className="hover:text-primary transition">Directory</Link>
+          <Link href="/marketplace" className="hover:text-primary transition">B2B & B2C Market</Link>
+          <Link href="/dashboard/seller" className="hover:text-primary transition">Sell on BC</Link>
+          <Link href="/dashboard/admin" className="hover:text-primary transition">Admin Panel</Link>
+        </nav>
+
+        <div className="hidden lg:flex items-center space-x-4">
+          <ThemeToggle />
+          <Link
+            href="/dashboard/seller"
+            className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-dark rounded-lg transition shadow-md"
+          >
+            List Your Business
+          </Link>
+        </div>
+
+        <div className="flex lg:hidden items-center space-x-3">
+          <ThemeToggle />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-gray-700 dark:text-gray-300"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+      </div>
+
+      {mobileMenuOpen && (
+        <div className="lg:hidden bg-white dark:bg-[#18221C] border-b border-gray-200 dark:border-gray-800 px-4 pt-2 pb-6 space-y-3">
+          <Link href="/directory" className="block py-2 font-medium text-gray-700 dark:text-gray-300">Directory</Link>
+          <Link href="/marketplace" className="block py-2 font-medium text-gray-700 dark:text-gray-300">B2B & B2C Market</Link>
+          <Link href="/dashboard/seller" className="block py-2 font-medium text-gray-700 dark:text-gray-300">Sell on BC</Link>
+          <Link href="/dashboard/admin" className="block py-2 font-medium text-gray-700 dark:text-gray-300">Admin Panel</Link>
+          <div className="pt-2">
+            <Link
+              href="/dashboard/seller"
+              className="block text-center w-full py-2.5 text-sm font-semibold text-white bg-primary rounded-lg shadow"
+            >
+              List Your Business
+            </Link>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+`,
+
+  'src/components/Footer.tsx': `import Link from 'next/link';
+
+export default function Footer() {
+  return (
+    <footer className="bg-gray-900 text-gray-400 py-12 border-t border-gray-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <div className="flex items-center space-x-2 mb-4">
+            <span className="text-xl font-black text-white">BUSINESS</span>
+            <span className="text-xl font-bold text-primary">CONNECT</span>
+          </div>
+          <p className="text-sm">
+            India's Next-Generation B2B & B2C Marketplace, Business Directory, and Wholesale Portal. Grow your business with verified leads and digital catalogs.
+          </p>
+        </div>
+        <div>
+          <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+          <ul className="space-y-2 text-sm">
+            <li><Link href="/directory" className="hover:text-white transition">Business Directory</Link></li>
+            <li><Link href="/marketplace" className="hover:text-white transition">Wholesale Portal</Link></li>
+            <li><Link href="/marketplace" className="hover:text-white transition">B2C Shopping</Link></li>
+            <li><Link href="/dashboard/seller" className="hover:text-white transition">Seller Registration</Link></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="text-white font-semibold mb-4">Categories</h4>
+          <ul className="space-y-2 text-sm">
+            <li><span className="hover:text-white cursor-pointer">Manufacturers & Suppliers</span></li>
+            <li><span className="hover:text-white cursor-pointer">Industrial Machinery</span></li>
+            <li><span className="hover:text-white cursor-pointer">Electronics & Electrical</span></li>
+            <li><span className="hover:text-white cursor-pointer">Apparel & Textiles</span></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="text-white font-semibold mb-4">Legal & Support</h4>
+          <ul className="space-y-2 text-sm">
+            <li><span className="hover:text-white cursor-pointer">Privacy Policy</span></li>
+            <li><span className="hover:text-white cursor-pointer">Terms of Service</span></li>
+            <li><span className="hover:text-white cursor-pointer">Customer Support</span></li>
+            <li><span className="hover:text-white cursor-pointer">Trust & Safety</span></li>
+          </ul>
+        </div>
+      </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-gray-800 text-center text-xs">
+        &copy; \${new Date().getFullYear()} Business Connect India. All rights reserved. Currencies in Indian Rupee (INR ₹).
+      </div>
+    </footer>
+  );
+}
+`,
+
+  'src/app/layout.tsx': `import type { Metadata } from "next";
+import "./globals.css";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+
+export const metadata: Metadata = {
+  title: "Business Connect | India's B2B & B2C Marketplace and Directory",
+  description: "Connect with verified manufacturers, wholesalers, suppliers, and retailers across India.",
+  manifest: "/manifest.json",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen flex flex-col antialiased bg-brand-bgLight dark:bg-brand-bgDark text-brand-textLight dark:text-brand-textDark">
+        <Navbar />
+        <main className="flex-grow">{children}</main>
+        <Footer />
+      </body>
+    </html>
+  );
+}
+`,
+
+  'src/app/manifest.ts': `import { MetadataRoute } from 'next';
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'Business Connect',
+    short_name: 'BusinessConnect',
+    description: 'B2B & B2C Marketplace and Business Directory for India',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#F5F8F6',
+    theme_color: '#16834A',
+    icons: [
+      {
+        src: '/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
   };
+}
+`,
 
-  db.products.push(newProduct);
-  res.status(201).json({ message: 'Product added successfully. Pending approval if added by vendor.', product: newProduct });
-});
+  'src/app/page.tsx': `import Link from 'next/link';
+import { Search, MapPin, ShieldCheck, Building2, ShoppingCart, ArrowRight } from 'lucide-react';
 
-// ==========================================
-// 4. CATEGORIES & LOCATIONS ENDPOINTS
-// ==========================================
-app.get('/api/categories', (req, res) => {
-  res.json(db.categories);
-});
+export default function HomePage() {
+  return (
+    <div className="space-y-16 pb-20">
+      <section className="bg-gradient-to-br from-primary to-primary-dark text-white py-20 px-4 sm:px-6 lg:px-8 text-center relative overflow-hidden">
+        <div className="max-w-4xl mx-auto space-y-6 relative z-10">
+          <span className="inline-flex items-center gap-1.5 py-1.5 px-4 rounded-full text-xs font-semibold bg-white/10 backdrop-blur-md text-white border border-white/20">
+            <ShieldCheck className="w-4 h-4 text-emerald-300" /> India's Trusted B2B & B2C Business Ecosystem
+          </span>
+          <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight">
+            Discover Verified Businesses & Wholesale Products
+          </h1>
+          <p className="text-lg sm:text-xl text-emerald-100 max-w-2xl mx-auto">
+            Connect with millions of manufacturers, suppliers, wholesalers, and retail buyers across India. Get verified leads instantly.
+          </p>
 
-app.post('/api/categories', authenticateToken, requireRoles('SUPER_ADMIN', 'ADMIN'), (req, res) => {
-  const { name, parentId } = req.body;
-  if (!name) return res.status(400).json({ error: 'Category name is required' });
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const cat = { id: `cat-${uuidv4()}`, name, slug, parentId: parentId || null };
-  db.categories.push(cat);
-  res.status(201).json(cat);
-});
+          <div className="bg-white dark:bg-[#18221C] p-3 rounded-2xl shadow-2xl max-w-3xl mx-auto flex flex-col md:flex-row gap-3 mt-8">
+            <div className="flex-1 flex items-center px-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <Search className="w-5 h-5 text-gray-400 mr-2" />
+              <input
+                type="text"
+                placeholder="What are you looking for? (e.g. Cotton Yarn, CNC Machine)"
+                className="w-full py-3 bg-transparent text-gray-900 dark:text-white focus:outline-none text-sm"
+              />
+            </div>
+            <div className="flex items-center px-3 bg-gray-50 dark:bg-gray-800 rounded-xl md:w-60">
+              <MapPin className="w-5 h-5 text-gray-400 mr-2" />
+              <input
+                type="text"
+                placeholder="All India or City"
+                className="w-full py-3 bg-transparent text-gray-900 dark:text-white focus:outline-none text-sm"
+              />
+            </div>
+            <button className="bg-primary hover:bg-primary-dark text-white font-semibold px-8 py-3 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+              Search
+            </button>
+          </div>
+        </div>
+      </section>
 
-app.get('/api/locations', (req, res) => {
-  res.json(db.locations);
-});
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Explore Top Categories</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Browse verified suppliers and industrial product catalogues</p>
+          </div>
+          <Link href="/directory" className="text-primary font-semibold text-sm hover:underline flex items-center gap-1">
+            View All <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
 
-// ==========================================
-// 5. ENQUIRY & RFQ WORKFLOW ENDPOINTS
-// ==========================================
-app.get('/api/enquiries', authenticateToken, (req, res) => {
-  if (['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
-    return res.json(db.enquiries);
-  }
-  const userEnquiries = db.enquiries.filter(e => e.buyerId === req.user.id || e.vendorId === req.user.id);
-  res.json(userEnquiries);
-});
-
-app.post('/api/enquiries', authenticateToken, requireRoles('BUYER', 'SUPER_ADMIN'), (req, res) => {
-  const { vendorId, productId, quantity, message, deliveryLocation } = req.body;
-  if (!vendorId || !quantity || !message) {
-    return res.status(400).json({ error: 'Vendor ID, quantity, and message are required' });
-  }
-
-  const newEnquiry = {
-    id: `enq-${uuidv4()}`,
-    buyerId: req.user.id,
-    vendorId,
-    productId: productId || null,
-    quantity: parseInt(quantity),
-    message,
-    deliveryLocation: deliveryLocation || '',
-    quotationPrice: null,
-    status: 'NEW',
-    createdAt: new Date()
-  };
-
-  db.enquiries.push(newEnquiry);
-  res.status(201).json({ message: 'Enquiry submitted successfully', enquiry: newEnquiry });
-});
-
-// ==========================================
-// 6. SOCIAL MEDIA LINK & QR CODE GENERATOR
-// ==========================================
-app.post('/api/social-qr/generate', async (req, res) => {
-  try {
-    const { phoneNumber, businessName, productTitle, targetUrl } = req.body;
-    let whatsappLink = null;
-    if (phoneNumber && businessName) {
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-      const msg = `Hello ${businessName}, I am interested in your listing${productTitle ? `: *${productTitle}*` : ''} via Business Connect.`;
-      whatsappLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-    }
-    let qrCodeDataUrl = null;
-    if (targetUrl) {
-      qrCodeDataUrl = await QRCode.toDataURL(targetUrl, { color: { dark: '#059669', light: '#FFFFFF' } });
-    }
-    res.json({ whatsappLink, qrCodeDataUrl });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// START SERVER
-// ==========================================
-app.listen(PORT, () => {
-  console.log(`[BUSINESS CONNECT] Running on port ${PORT}`);
-});
-                                                            
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[
+            { title: 'Manufacturers', count: '45,000+ Listings', icon: Building2 },
+            { title: 'Wholesalers', count: '32,000+ Suppliers', icon: ShoppingCart },
