@@ -1,13 +1,14 @@
 {
-  "name": "business-connect",
+  "name": "business-connect-india",
   "version": "1.0.0",
-  "description": "Business Connect B2B & B2C Marketplace",
+  "description": "Role-based B2B/B2C marketplace with super admin, admin, merchant, supplier, seller and buyer dashboards",
   "main": "server.js",
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "scripts": {
-    "start": "node server.js",
-    "seed": "node init_db.js"
-  }
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
 }
