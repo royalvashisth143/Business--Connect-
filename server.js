@@ -1,4 +1,3 @@
-
 const http = require('node:http');
 const crypto = require('node:crypto');
 
@@ -69,8 +68,43 @@ const sessions = new Map(); // sid -> { uid, exp }
     console.log('[seed] Change these before going live (set DEMO_DATA=0 to skip demo users).');
 })();
 
+// ───────────────────────────── persistence ─────────────────────────────
+// Data is saved to a JSON file so accounts/products survive restarts.
+// Set DATA_FILE to a path on a persistent disk when hosting (ephemeral disks still reset on redeploy).
+const fs = require('node:fs');
+const path = require('node:path');
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
+const COLLECTIONS = { users, locations, businesses, products, enquiries };
+
+function loadData() {
+    try {
+        const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        for (const [k, arr] of Object.entries(COLLECTIONS)) if (Array.isArray(d[k])) arr.splice(0, arr.length, ...d[k]);
+        sessions.clear();
+        for (const [sid, s] of d.sessions || []) if (s.exp > Date.now()) sessions.set(sid, s);
+        console.log(`[data] Loaded ${users.length} users from ${DATA_FILE}`);
+    } catch (e) {
+        if (e.code !== 'ENOENT') console.error('[data] Could not read data file, starting with seed data:', e.message);
+    }
+}
+let saveTimer = null;
+function saveNow() {
+    clearTimeout(saveTimer); saveTimer = null;
+    try {
+        const out = { sessions: [...sessions.entries()] };
+        for (const [k, arr] of Object.entries(COLLECTIONS)) out[k] = arr;
+        const tmp = DATA_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(out), { mode: 0o600 });
+        fs.renameSync(tmp, DATA_FILE);
+    } catch (e) { console.error('[data] Save failed:', e.message); }
+}
+const saveSoon = () => { if (!saveTimer) saveTimer = setTimeout(saveNow, 300); };
+loadData();
+process.on('SIGTERM', () => { saveNow(); process.exit(0); });
+process.on('SIGINT', () => { saveNow(); process.exit(0); });
+
 // ───────────────────────────── validation ─────────────────────────────
-const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+const bad =(msg, status = 400) => Object.assign(new Error(msg), { status });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^\+?[\d\s-]{7,18}$/;
 
@@ -223,7 +257,9 @@ async function api(req, res, pathname, user) {
     const m = req.method;
     const parts = pathname.split('/').filter(Boolean); // ['api', resource, id]
     const r = parts[1], id = parts[2];
-    const ip = req.socket.remoteAddress || 'x';
+    // Behind a hosting proxy (Render, Railway, nginx...) set TRUST_PROXY=1 so each visitor gets their own IP for rate limits.
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = (process.env.TRUST_PROXY === '1' && fwd) || req.socket.remoteAddress || 'x';
     let b = {};
     if (m === 'POST' || m === 'PUT') {
         if (!/application\/json/i.test(req.headers['content-type'] || '')) throw bad('Content-Type must be application/json', 415);
@@ -232,8 +268,9 @@ async function api(req, res, pathname, user) {
 
     // ── auth ──
     if (r === 'login' && m === 'POST') {
-        if (limited('login:' + ip, 10, 15 * 60 * 1000)) throw bad('Too many attempts. Try again later.', 429);
         const email = String(b.email || '').trim().toLowerCase();
+        // per-IP and per-account limits, so one shared proxy IP can never lock out every user
+        if (limited('login:' + ip, 60, 15 * 60 * 1000) || limited('loginem:' + email, 10, 15 * 60 * 1000)) throw bad('Too many attempts. Try again later.', 429);
         const u = users.find(x => x.email === email);
         if (!u || !checkPw(String(b.password || ''), u.password_hash)) throw bad('Invalid email or password', 401);
         if (u.status === 'pending') throw bad('Your account is awaiting admin approval', 403);
@@ -319,37 +356,4 @@ async function api(req, res, pathname, user) {
         }
         if (m === 'DELETE') {
             const n = users.filter(x => x.location_id === l.id).length + businesses.filter(x => x.location_id === l.id).length;
-            if (n) throw bad(`Location is used by ${n} user/business record(s). Deactivate it instead.`, 409);
-            locations.splice(locations.indexOf(l), 1);
-            return json(res, 200, { success: true });
-        }
-    }
-
-    // ── users ──
-    if (r === 'users') {
-        needAdmin(user);
-        if (m === 'GET') return json(res, 200, users.map(outUser));
-        if (m === 'POST') {
-            const d = clean(S.user, b, false);
-            if (!canAssignRole(user, d.role)) throw bad('You cannot create this role', 403);
-            checkLocation(d);
-            const pw = String(b.password || '');
-            if (pw.length < 8 || pw.length > 100) throw bad('Password must be 8-100 characters');
-            if (users.some(x => x.email === d.email)) throw bad('Email already registered', 409);
-            const u = { id: uid('usr'), phone: '', status: 'active', location_id: null, ...d, business_id: null, password_hash: hashPw(pw), created_at: now() };
-            if (VENDOR_ROLES.includes(u.role)) {
-                const bd = clean({ business_name: S.business.business_name, category: S.business.category }, { business_name: b.business_name || u.name + ' Business', category: b.category || 'General' }, false);
-                createBusiness(u, bd);
-            }
-            users.push(u);
-            return json(res, 201, outUser(u));
-        }
-        const t = users.find(x => x.id === id);
-        if (!t) throw bad('User not found', 404);
-        if (!canManageUser(user, t)) throw bad('You cannot manage this user', 403);
-        if (m === 'PUT') {
-            const d = clean(S.user, b, true);
-            checkLocation(d);
-            if (d.email && users.some(x => x.id !== t.id && x.email === d.email)) throw bad('Email already registered', 409);
-            if (d.role && d.role !== t.role) {
-                if (
+            if (n) throw bad(
