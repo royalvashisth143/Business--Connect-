@@ -1,3 +1,10 @@
+'use strict';
+/*
+ * Business Connect India - role based B2B / B2C marketplace
+ * Roles: super_admin, admin, merchant, supplier, seller, buyer
+ * Zero dependencies. Run:  node server.js
+ * Data is kept in memory (resets on restart) - swap the arrays for a DB for production.
+ */
 const http = require('node:http');
 const crypto = require('node:crypto');
 
@@ -351,7 +358,4 @@ async function api(req, res, pathname, user) {
             checkLocation(d);
             if (d.email && users.some(x => x.id !== t.id && x.email === d.email)) throw bad('Email already registered', 409);
             if (d.role && d.role !== t.role) {
-                if (t.id === user.id) throw bad('You cannot change your own role');
-                if (!canAssignRole(user, d.role)) throw bad('You cannot assign this role', 403);
-            }
-            if (d.status && d.status !== 'active' && t.id === user.id) throw bad('You cannot deactivate
+                if (
